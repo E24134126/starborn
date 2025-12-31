@@ -144,6 +144,13 @@ const tCanvas = document.createElement("canvas");
 const tCtx = tCanvas.getContext("2d");
 tCanvas.width = 2000; tCanvas.height = 1000;
 
+// --- 高解析度文字 canvas ---
+const scaleFactor = 2;  // 放大 2 倍
+tCanvas.width = 2000 * scaleFactor;
+tCanvas.height = 1000 * scaleFactor;
+tCtx.setTransform(1,0,0,1,0,0);  // 清除任何舊縮放
+tCtx.scale(scaleFactor, scaleFactor);
+  
 let width, height, drones = [], fireworks = [], fwParticles = [];
 let isStarted = false, isEnded = false, currentIdx = 0;
 let mouse = { x: -1000, y: -1000, active: false, charge: 0 };
@@ -275,21 +282,21 @@ function loadPattern(obj) {
   const pixels = [];
   let minX = 9999, maxX = 0, minY = 9999, maxY = 0;
 
-  const gap = 10; 
+  const gap = 10;
   for (let y = 0; y < tCanvas.height; y += gap) {
     for (let x = 0; x < tCanvas.width; x += gap) {
       if (imgData[(y * tCanvas.width + x) * 4 + 3] > 128) {
-        pixels.push({ x, y });
+        pixels.push({ x: x / scaleFactor, y: y / scaleFactor }); // 除以 scaleFactor
         if (x < minX) minX = x; if (x > maxX) maxX = x;
         if (y < minY) minY = y; if (y > maxY) maxY = y;
       }
     }
   }
 
-  const textCenterX = (minX + maxX) / 2;
-  const textCenterY = (minY + maxY) / 2;
-  const textWidth = maxX - minX;
-  const textHeight = maxY - minY;
+  const textCenterX = (minX + maxX) / 2 / scaleFactor;
+  const textCenterY = (minY + maxY) / 2 / scaleFactor;
+  const textWidth = (maxX - minX) / scaleFactor;
+  const textHeight = (maxY - minY) / scaleFactor;
   const scale = Math.min((width * 0.8) / textWidth, (height * 0.45) / textHeight, 1.5);
 
   drones.forEach((d, i) => {
@@ -451,6 +458,7 @@ window.addEventListener("resize", () => {
 </body>
 
 </html>
+
 
 
 
