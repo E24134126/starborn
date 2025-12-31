@@ -149,6 +149,22 @@ let isStarted = false, isEnded = false, currentIdx = 0;
 let mouse = { x: -1000, y: -1000, active: false, charge: 0 };
 let lastTap = 0;
 
+
+// 高解析度初始化
+function resizeCanvas() {
+  scale = window.devicePixelRatio || 1;
+  width = window.innerWidth;
+  height = window.innerHeight;
+  canvas.width = width * scale;
+  canvas.height = height * scale;
+  canvas.style.width = width + "px";
+  canvas.style.height = height + "px";
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.scale(scale, scale);
+}
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas()；
+
 // 設定目標時間：2026年1月1日 00:00:00
 const targetTime = new Date("2026/01/01 00:00:00").getTime();
 
@@ -435,4 +451,5 @@ window.addEventListener("resize", () => {
 </body>
 
 </html>
+
 
