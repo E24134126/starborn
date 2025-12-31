@@ -74,9 +74,32 @@
     width: 200px; height: 4px; border: 1px solid #00ff41; display: none;
   }
   #charge-bar { width: 0%; height: 100%; background: #00ff41; }
+  /* ---------------------------------------------------------
+   📱 手機最佳化 — 移除濾鏡 + 提高畫面清晰度
+--------------------------------------------------------- */
   @media (max-width: 768px) {
+
+  /* 完全移除掃描線濾鏡 */
   body::after {
-    display: none;
+    content: none !important;
+    background: none !important;
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+  }
+
+  /* 手機小螢幕字體更清楚 */
+  .term-line { font-size: 12px; letter-spacing: 1px; }
+
+  #countdown-timer { font-size: 20px; }
+
+  /* HUD 元素縮小避免遮擋 */
+  .reticle { width: 35px; height: 35px; }
+  #data-stream { left: 20px; top: 20px; font-size: 9px; }
+
+  /* 動畫光點避免太亮 */
+  canvas {
+    image-rendering: crisp-edges;
   }
 }
 </style>
@@ -412,3 +435,4 @@ window.addEventListener("resize", () => {
 </body>
 
 </html>
+
