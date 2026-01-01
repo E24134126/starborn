@@ -13,14 +13,13 @@
   }
   canvas { display: block; }
 
-  /* 掃描線濾鏡感 */
+  /* 掃描線濾鏡 */
   body::after {
     content: " "; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
     background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
     background-size: 100% 4px; pointer-events: none; z-index: 500;
   }
 
-  /* 啟動介面 */
   #boot-screen {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
     background: #000; z-index: 2000; display: flex; flex-direction: column;
@@ -28,7 +27,6 @@
     transition: opacity 0.8s ease;
   }
   
-  /* 結束介面 */
   #end-screen {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
     background: #000; z-index: 2000; display: none; flex-direction: column;
@@ -49,7 +47,6 @@
     box-shadow: 0 0 15px rgba(0, 255, 65, 0.2); background: rgba(0, 255, 65, 0.1);
   }
 
-  /* 戰術 HUD */
   #hud {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
     pointer-events: none; z-index: 100; display: none; color: #00ff41;
@@ -100,6 +97,10 @@ const ctx = canvas.getContext("2d");
 const tCanvas = document.createElement("canvas");
 const tCtx = tCanvas.getContext("2d");
 
+// 核心修復：離屏畫布設為固定大尺寸，防止長文字被切斷
+tCanvas.width = 3000;
+tCanvas.height = 2000;
+
 let width, height, dpr;
 let drones = [], fireworks = [], fwParticles = [];
 let isStarted = false, isEnded = false, currentIdx = 0;
@@ -142,22 +143,15 @@ function updateCountdown() {
 updateCountdown();
 
 function init() {
-  // --- 核心修復：解決手機模糊問題 ---
   dpr = window.devicePixelRatio || 1;
   width = window.innerWidth;
   height = window.innerHeight;
   
-  // 設定主畫布物理像素
   canvas.width = width * dpr;
   canvas.height = height * dpr;
   canvas.style.width = width + 'px';
   canvas.style.height = height + 'px';
   ctx.scale(dpr, dpr);
-
-  // 設定離屏畫布物理像素 (確保採樣點高清)
-  tCanvas.width = width * dpr;
-  tCanvas.height = height * dpr;
-  tCtx.scale(dpr, dpr);
   
   if (drones.length === 0) {
     for (let i = 0; i < 2800; i++) drones.push(new Drone());
@@ -173,7 +167,6 @@ class Drone {
     this.color = '#fff';
     this.size = 1.6;
     this.easing = 0.05 + Math.random() * 0.03;
-    this.noise = Math.random() * 100;
   }
   update() {
     let dx = this.targetX - this.x;
@@ -194,7 +187,6 @@ class Drone {
     this.x += this.vx; this.y += this.vy;
   }
   draw() {
-    // 使用 Math.floor 防止次像素模糊
     const px = Math.floor(this.x);
     const py = Math.floor(this.y);
     ctx.fillStyle = this.color;
@@ -206,48 +198,52 @@ class Drone {
 }
 
 function loadPattern(obj) {
-  tCtx.clearRect(0, 0, width, height);
+  tCtx.clearRect(0, 0, tCanvas.width, tCanvas.height);
   const lines = obj.text.split('\n');
-  let fontSize = (obj.text.length > 4) ? 160 : 240;
-  if (obj.text.length > 12) fontSize = 110;
-
-  // 使用系統字體並強制極粗體
+  
+  // 核心修復：在超大畫布上繪製，防止邊緣切斷
+  let fontSize = 200; 
   tCtx.font = `900 ${fontSize}px system-ui, -apple-system, "Microsoft JhengHei", sans-serif`;
-  tCtx.textAlign = "left"; tCtx.textBaseline = "top"; 
+  tCtx.textAlign = "center"; 
+  tCtx.textBaseline = "middle"; 
   tCtx.fillStyle = "white";
 
   const lineHeight = fontSize * 1.2;
+  const totalHeight = lines.length * lineHeight;
+  
   lines.forEach((line, index) => {
-    tCtx.fillText(line, 50, 50 + (index * lineHeight));
+    // 畫在 3000x2000 畫布的正中央
+    tCtx.fillText(line, tCanvas.width / 2, (tCanvas.height / 2 - totalHeight / 2) + (index * lineHeight) + lineHeight / 2);
   });
 
-  // 根據物理像素採樣
-  const imgData = tCtx.getImageData(0, 0, width * dpr, height * dpr).data;
+  const imgData = tCtx.getImageData(0, 0, tCanvas.width, tCanvas.height).data;
   const pixels = [];
   let minX = 9999, maxX = 0, minY = 9999, maxY = 0;
 
-  // 縮小採樣間距 (Gap 6)，讓字體更細膩
-  const gap = Math.floor(6 * dpr); 
-  for (let y = 0; y < height * dpr; y += gap) {
-    for (let x = 0; x < width * dpr; x += gap) {
-      if (imgData[(y * (width * dpr) + x) * 4 + 3] > 128) {
-        const lx = x / dpr;
-        const ly = y / dpr;
-        pixels.push({ x: lx, y: ly });
-        if (lx < minX) minX = lx; if (lx > maxX) maxX = lx;
-        if (ly < minY) minY = ly; if (ly > maxY) maxY = ly;
+  // 採樣
+  const gap = 12; 
+  for (let y = 0; y < tCanvas.height; y += gap) {
+    for (let x = 0; x < tCanvas.width; x += gap) {
+      if (imgData[(y * tCanvas.width + x) * 4 + 3] > 128) {
+        pixels.push({ x, y });
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
       }
     }
   }
 
+  // 計算物理中心與縮放
   const textCenterX = (minX + maxX) / 2;
   const textCenterY = (minY + maxY) / 2;
   const textWidth = maxX - minX;
   const textHeight = maxY - minY;
-  const scale = Math.min((width * 0.85) / textWidth, (height * 0.45) / textHeight, 1.5);
+  
+  // 核心修復：根據手機螢幕寬度自動縮放，確保字體 100% 完整
+  const scale = Math.min((width * 0.85) / textWidth, (height * 0.5) / textHeight, 1.0);
 
   drones.forEach((d, i) => {
     const p = pixels[i % pixels.length];
+    // 將採樣點平移到螢幕中心
     d.targetX = (p.x - textCenterX) * scale + (width / 2);
     d.targetY = (p.y - textCenterY) * scale + (height / 2);
     d.color = obj.color;
