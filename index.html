@@ -97,7 +97,7 @@ const ctx = canvas.getContext("2d");
 const tCanvas = document.createElement("canvas");
 const tCtx = tCanvas.getContext("2d");
 
-// 核心修復：離屏畫布設為固定大尺寸，防止長文字被切斷
+// 離屏畫布設為固定大尺寸
 tCanvas.width = 3000;
 tCanvas.height = 2000;
 
@@ -146,7 +146,6 @@ function init() {
   dpr = window.devicePixelRatio || 1;
   width = window.innerWidth;
   height = window.innerHeight;
-  
   canvas.width = width * dpr;
   canvas.height = height * dpr;
   canvas.style.width = width + 'px';
@@ -166,13 +165,17 @@ class Drone {
     this.vx = 0; this.vy = 0;
     this.color = '#fff';
     this.size = 1.6;
-    this.easing = 0.05 + Math.random() * 0.03;
+    this.isStar = false; // 是否為背景散星
   }
   update() {
     let dx = this.targetX - this.x;
     let dy = this.targetY - this.y;
-    this.vx += dx * 0.012;
-    this.vy += dy * 0.012;
+    
+    // 散星移動較慢，文字點移動較快
+    let speed = this.isStar ? 0.005 : 0.015;
+    this.vx += dx * speed;
+    this.vy += dy * speed;
+
     if (mouse.active && !isEnded) {
       let mdx = mouse.x - this.x;
       let mdy = mouse.y - this.y;
@@ -190,9 +193,12 @@ class Drone {
     const px = Math.floor(this.x);
     const py = Math.floor(this.y);
     ctx.fillStyle = this.color;
-    ctx.shadowBlur = 4;
-    ctx.shadowColor = this.color;
-    ctx.fillRect(px, py, this.size, this.size);
+    // 散星不發光，文字點發光
+    if (!this.isStar) {
+        ctx.shadowBlur = 5;
+        ctx.shadowColor = this.color;
+    }
+    ctx.fillRect(px, py, this.isStar ? 1 : this.size, this.isStar ? 1 : this.size);
     ctx.shadowBlur = 0;
   }
 }
@@ -201,18 +207,20 @@ function loadPattern(obj) {
   tCtx.clearRect(0, 0, tCanvas.width, tCanvas.height);
   const lines = obj.text.split('\n');
   
-  // 核心修復：在超大畫布上繪製，防止邊緣切斷
-  let fontSize = 200; 
+  // 核心修復：針對 3, 2, 1 數字特別加大，防止糊成一團
+  let isNumber = /^[0-9]$/.test(obj.text);
+  let fontSize = isNumber ? 500 : 220; 
+  if (obj.text.length > 10) fontSize = 150;
+
   tCtx.font = `900 ${fontSize}px system-ui, -apple-system, "Microsoft JhengHei", sans-serif`;
   tCtx.textAlign = "center"; 
   tCtx.textBaseline = "middle"; 
   tCtx.fillStyle = "white";
 
-  const lineHeight = fontSize * 1.2;
+  const lineHeight = fontSize * 1.1;
   const totalHeight = lines.length * lineHeight;
   
   lines.forEach((line, index) => {
-    // 畫在 3000x2000 畫布的正中央
     tCtx.fillText(line, tCanvas.width / 2, (tCanvas.height / 2 - totalHeight / 2) + (index * lineHeight) + lineHeight / 2);
   });
 
@@ -220,8 +228,8 @@ function loadPattern(obj) {
   const pixels = [];
   let minX = 9999, maxX = 0, minY = 9999, maxY = 0;
 
-  // 採樣
-  const gap = 12; 
+  // 採樣間距：數字採樣更細，文字採樣適中
+  const gap = isNumber ? 8 : 12; 
   for (let y = 0; y < tCanvas.height; y += gap) {
     for (let x = 0; x < tCanvas.width; x += gap) {
       if (imgData[(y * tCanvas.width + x) * 4 + 3] > 128) {
@@ -232,21 +240,28 @@ function loadPattern(obj) {
     }
   }
 
-  // 計算物理中心與縮放
   const textCenterX = (minX + maxX) / 2;
   const textCenterY = (minY + maxY) / 2;
   const textWidth = maxX - minX;
   const textHeight = maxY - minY;
   
-  // 核心修復：根據手機螢幕寬度自動縮放，確保字體 100% 完整
-  const scale = Math.min((width * 0.85) / textWidth, (height * 0.5) / textHeight, 1.0);
+  const scale = Math.min((width * 0.8) / textWidth, (height * 0.5) / textHeight, 1.0);
 
   drones.forEach((d, i) => {
-    const p = pixels[i % pixels.length];
-    // 將採樣點平移到螢幕中心
-    d.targetX = (p.x - textCenterX) * scale + (width / 2);
-    d.targetY = (p.y - textCenterY) * scale + (height / 2);
-    d.color = obj.color;
+    if (i < pixels.length) {
+        // 負責排字的無人機
+        const p = pixels[i];
+        d.targetX = (p.x - textCenterX) * scale + (width / 2);
+        d.targetY = (p.y - textCenterY) * scale + (height / 2);
+        d.color = obj.color;
+        d.isStar = false;
+    } else {
+        // 多餘的無人機變成背景散星，防止擠在一起變色塊
+        d.targetX = Math.random() * width;
+        d.targetY = Math.random() * height;
+        d.color = "rgba(255,255,255,0.2)";
+        d.isStar = true;
+    }
     d.vx += (Math.random()-0.5)*15; d.vy += (Math.random()-0.5)*15;
   });
 }
@@ -257,6 +272,7 @@ function endShow() {
         d.targetX = Math.random() * width;
         d.targetY = Math.random() * height;
         d.color = "rgba(255,255,255,0.1)";
+        d.isStar = true;
     });
     const endScreen = document.getElementById("end-screen");
     endScreen.style.display = "flex";
@@ -291,7 +307,7 @@ class Firework {
     this.y -= this.speed;
     if (this.y <= this.ty) {
       this.dead = true;
-      for(let i=0; i<50; i++) fwParticles.push(new FWParticle(this.x, this.y, this.hue));
+      for(let i=0; i<40; i++) fwParticles.push(new FWParticle(this.x, this.y, this.hue));
     }
   }
   draw() {
